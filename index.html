@@ -1,27 +1,128 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<title>手表网页测试</title>
-<style>
-:root { font-family: -apple-system, BlinkMacSystemFont, sans-serif; color-scheme: light dark; }
-body { margin: 0; padding: 20px 12px 32px; line-height: 1.55; overflow-wrap: anywhere; }
-main { max-width: 400px; margin: auto; }
-.tag { color: #208c70; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
-h1 { font-size: 24px; line-height: 1.2; margin: 12px 0; }
-p { font-size: 16px; }
-section { margin: 20px 0; padding-top: 12px; border-top: 1px solid #8887; }
-h2 { font-size: 17px; margin: 0 0 6px; }
-small { color: #888; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>鸣潮日常</title>
+  <style>
+    :root { color-scheme: light; background: #fff; color: #191e24; }
+    * { box-sizing: border-box; }
+    body {
+      max-width: 22rem; margin: 0 auto;
+      font: 16px/1.25 system-ui, -apple-system, sans-serif;
+    }
+    header { padding: 4px 3px 10px; }
+    h1 { margin: 0; font-size: 26px; font-weight: 760; letter-spacing: .04em; }
+    .pages {
+      display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+    }
+    .pages::-webkit-scrollbar { display: none; }
+    .page { flex: 0 0 100%; min-width: 0; padding: 12px 10px 16px; scroll-snap-align: start; }
+    .today { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    #today-status { margin: 0; font-size: clamp(25px, 17vw, 42px); font-weight: 800; white-space: nowrap; }
+    .page-nav {
+      min-height: 38px; margin-top: 10px; padding: 5px 9px;
+      border: 0; border-radius: 8px; background: #edf3fa; color: #174f96;
+      font: inherit; font-size: 14px; font-weight: 650; cursor: pointer;
+    }
+    ol { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+    li {
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+      column-gap: 9px; row-gap: 3px; min-height: 45px; padding: 7px 9px;
+      background: #f5f7f9; border: 1px solid #e3e8ed; border-radius: 10px;
+    }
+    .day { display: flex; flex-wrap: wrap; gap: 3px 6px; align-items: baseline; }
+    .weekday { font-size: 17px; font-weight: 700; }
+    .date { color: #53616d; font-size: 14px; font-variant-numeric: tabular-nums; }
+    .status { font-size: 19px; font-weight: 750; white-space: nowrap; }
+    .ok { color: #136d45; }
+    .failed { color: #a51e29; }
+    .empty { color: #53616d; }
+  </style>
 </head>
-<body><main>
-<div class="tag">APPLE WATCH · 测试页</div>
-<h1>手表更新测试：来自 DeepSeek Harness</h1>
-<p>如果你能在手表上看到这段文字，说明这个网页已经成功加载。</p>
-<section><h2>一条示例消息</h2><p>今天也记得抬头看看天空。</p><small>这只是示例内容。</small></section>
-<section><h2>再往下滑一滑</h2><p>这里是第二段文字，用来测试小屏幕上的滚动和阅读。</p></section>
-<section><h2>接下来</h2><p>确定网页可以打开后，我们再一起决定这里放什么信息。</p></section>
-</main></body></html>
+<body>
+  <main class="pages" aria-label="鸣潮日常">
+    <section class="page today" aria-label="今日状态">
+      <h1 id="today-status" class="empty">未进行</h1>
+      <button type="button" class="page-nav" data-page="1">五天记录 →</button>
+    </section>
+    <section class="page" aria-labelledby="history-title">
+      <header><h1 id="history-title">五天记录</h1></header>
+      <ol id="records" aria-label="周一到周五的运行结果"></ol>
+      <button type="button" class="page-nav" data-page="0">← 今日状态</button>
+    </section>
+  </main>
+  <noscript>请启用 JavaScript 查看运行结果。</noscript>
+
+  <!-- 每日发布只编辑下方 JSON 的 today 和对应工作日记录。 -->
+  <script type="application/json" id="wuwa-results">
+{
+  "today": null,
+  "weekdays": {
+    "mon": null,
+    "tue": null,
+    "wed": null,
+    "thu": null,
+    "fri": null
+  }
+}
+  </script>
+  <script>
+    const days = { mon: '周一', tue: '周二', wed: '周三', thu: '周四', fri: '周五' };
+    const labels = new Map([['ok', '完成'], ['failed', '失败']]);
+    const todayStatus = document.getElementById('today-status');
+    const list = document.getElementById('records');
+    const pages = document.querySelector('.pages');
+    for (const button of document.querySelectorAll('[data-page]')) {
+      button.addEventListener('click', () => {
+        pages.scrollTo({ left: Number(button.dataset.page) * pages.clientWidth });
+      });
+    }
+    let data;
+    try {
+      data = JSON.parse(document.getElementById('wuwa-results').textContent);
+    } catch {
+      list.textContent = '记录暂不可读';
+      todayStatus.textContent = '记录不可读';
+    }
+
+    if (data) {
+      const beijingDate = {};
+      const format = new Intl.DateTimeFormat('en', {
+        timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
+      });
+      for (const part of format.formatToParts(new Date())) beijingDate[part.type] = part.value;
+      const dateKey = `${beijingDate.year}-${beijingDate.month}-${beijingDate.day}`;
+      if (data.today?.date === dateKey && labels.has(data.today.status)) {
+        todayStatus.textContent = labels.get(data.today.status);
+        todayStatus.className = data.today.status;
+      }
+      for (const [key, label] of Object.entries(days)) {
+        const record = data.weekdays?.[key];
+        const valid = record && /^\d{4}-\d{2}-\d{2}$/.test(record.date) && labels.has(record.status);
+        const row = document.createElement('li');
+        const day = document.createElement('span');
+        day.className = 'day';
+        const weekday = document.createElement('span');
+        weekday.className = 'weekday';
+        weekday.textContent = label;
+        day.append(weekday);
+        if (valid) {
+          const date = document.createElement('time');
+          date.className = 'date';
+          date.dateTime = record.date;
+          date.textContent = record.date.slice(5).replace('-', '/');
+          day.append(date);
+        }
+        const status = document.createElement('span');
+        status.className = `status ${valid ? record.status : 'empty'}`;
+        status.textContent = valid ? labels.get(record.status) : '未进行';
+        row.append(day, status);
+        list.append(row);
+      }
+    }
+  </script>
+</body>
+</html>
